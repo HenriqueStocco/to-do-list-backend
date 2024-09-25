@@ -1,0 +1,42 @@
+### CREATE TODO
+POST http://localhost:3000/api/todo
+Content-Type: application/json
+
+{
+  "description": "Study frontend"
+}
+
+### GET TODO LIST
+GET http://localhost:3000/api/todo
+
+### GET TODO BY ID
+GET http://localhost:3000/api/todo/6
+
+### DELETE TODO BY ID
+DELETE http://localhost:3000/api/todo/7
+
+### UPDATE TODO BY ID
+PUT http://localhost:3000/api/todo/6
+Content-Type: application/json
+
+{
+  "description": "Give up making carbonara" 
+}
+
+### CREATE USER
+POST http://localhost:3000/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "userTest2@test.com",
+  "password": "testpassword123"
+}
+
+### Login
+POST http://localhost:3000/api/auth/login
+Content-Type:  application/json
+
+{
+  "email": "userTest2@test.com",
+  "password": "testpassword123"
+}
