@@ -9,6 +9,10 @@ import { authMiddleware } from '../middlewares/auth'
 
 export const toDo = new Hono()
 
+const payloadSchema = z.object({
+  id: z.string().min(1, 'User ID cannot be empty'),
+})
+
 /**
  * Uses middleware to get the JWT from the cookie
  */
@@ -22,34 +26,52 @@ toDo.post(
   zValidator(
     'json',
     z.object({
-      description: z.string(),
+      description: z
+        .string()
+        .min(4, 'Description cannot be empty')
+        .max(200, 'Description is too long'),
     })
   ),
   async ctx => {
     try {
+      const userPayload = ctx.get('jwtPayload').id
       const body = ctx.req.valid('json')
-      const userId = ctx.get('jwtPayload').id
 
-      if (!userId) {
+      if (!userPayload) {
         return ctx.json(
-          { unauthorized: 'Invalid or not exists token', userId },
+          { status: 'Unauthorized', message: 'Invalid or missing token' },
           401
         )
       }
 
       if (!body.description) {
-        return ctx.text('Error to create a todo', 401)
+        return ctx.json(
+          {
+            status: 'Bad Request',
+            message: 'Error trying to create a task',
+          },
+          400
+        )
       }
 
       await db.insert(todos).values({
         description: body.description,
-        userId,
+        userId: userPayload,
       })
 
-      return ctx.json({ message: 'Todo created successfully' }, 201)
+      return ctx.json(
+        { status: 'Created', message: 'The task was successfully created' },
+        201
+      )
     } catch (error) {
       console.error(error)
-      return ctx.text('Internal server error', 500)
+      return ctx.json(
+        {
+          status: 'Internal Server Error',
+          message: 'An unexpected error occurred',
+        },
+        500
+      )
     }
   }
 )
@@ -59,11 +81,14 @@ toDo.post(
  */
 toDo.get('/', async ctx => {
   try {
-    const userId = ctx.get('jwtPayload').id
+    const userPayload = ctx.get('jwtPayload').id
 
-    if (!userId) {
+    if (!userPayload) {
       return ctx.json(
-        { unauthorized: 'Invalid or not exists token', userId },
+        {
+          status: 'Unauthorized',
+          message: 'Invalid or missing token',
+        },
         401
       )
     }
@@ -71,15 +96,23 @@ toDo.get('/', async ctx => {
     const getTodoList = await db
       .select()
       .from(todos)
-      .where(eq(todos.userId, userId))
+      .where(eq(todos.userId, userPayload))
       .orderBy(asc(todos.id))
 
-    if (getTodoList.length < 1) return ctx.text('Todo list no exists', 400)
+    if (getTodoList.length < 1) {
+      return ctx.json({ status: 'Success', message: 'Empty todo list' }, 200)
+    }
 
-    return ctx.json({ data: getTodoList }, 200)
+    return ctx.json({ status: 'Success', tasks: getTodoList }, 200)
   } catch (error) {
     console.error(error)
-    return ctx.text('Internal server error', 500)
+    return ctx.json(
+      {
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred',
+      },
+      500
+    )
   }
 })
 
@@ -88,28 +121,44 @@ toDo.get('/', async ctx => {
  */
 toDo.get('/:id', async ctx => {
   try {
-    const userId = ctx.get('jwtPayload').id
-    const id = Number(ctx.req.param('id'))
+    const userPayload = ctx.get('jwtPayload').id
+    const taskId = Number(ctx.req.param('id'))
 
-    if (!userId) {
+    if (!userPayload) {
       return ctx.json(
-        { unauthorized: 'Invalid or not exists token', userId },
+        {
+          status: 'Unauthorized',
+          message: 'Invalid or missing token',
+        },
         401
       )
     }
 
-    if (!id) return ctx.text('Id no exists', 404)
+    if (!taskId) {
+      return ctx.json({ status: 'Not Found', message: 'Missing task ID' }, 404)
+    }
 
     const getTodoById = await db.query.todos.findFirst({
-      where: and(eq(todos.id, id), eq(todos.userId, userId)),
+      where: and(eq(todos.id, taskId), eq(todos.userId, userPayload)),
     })
 
-    if (!getTodoById) return ctx.text('Todo not exists with that id', 404)
+    if (!getTodoById) {
+      return ctx.json(
+        { status: 'Not Found', message: 'No task with this ID was found' },
+        404
+      )
+    }
 
-    return ctx.json({ data: getTodoById }, 200)
+    return ctx.json({ status: 'Success', task: getTodoById }, 200)
   } catch (error) {
     console.error(error)
-    return ctx.text('Internal server error', 500)
+    return ctx.json(
+      {
+        status: 'Internal Server Error',
+        message: 'An unexpected error occurred',
+      },
+      500
+    )
   }
 })
 
@@ -120,12 +169,6 @@ toDo.put(
   '/:id',
   zValidator('param', z.coerce.number().int()),
   zValidator(
-    'cookie',
-    z.object({
-      userId: z.string(),
-    })
-  ),
-  zValidator(
     'json',
     z.object({
       description: z.string(),
@@ -133,32 +176,54 @@ toDo.put(
   ),
   async ctx => {
     try {
-      const userId = ctx.get('jwtPayload').id
-      const id = Number(ctx.req.param('id'))
+      const userPayload = ctx.get('jwtPayload').id
+      const taskId = Number(ctx.req.param('id'))
       const body = ctx.req.valid('json')
 
-      if (!userId) {
+      if (!userPayload) {
         return ctx.json(
-          { unauthorized: 'Invalid or not exists token', userId },
+          { status: 'Unauthorized', message: 'Invalid or missing token' },
           401
         )
       }
 
-      if (!id || !body.description)
-        ctx.text('Id or description not entered', 404)
+      if (!taskId || !body.description)
+        return ctx.json(
+          {
+            status: 'Not Found',
+            message: 'Missing task ID or new description',
+          },
+          404
+        )
 
       const updateTodoById = await db
         .update(todos)
         .set({ description: body.description, createdAt: sql`NOW()` })
-        .where(and(eq(todos.id, id), eq(todos.userId, userId)))
+        .where(and(eq(todos.id, taskId), eq(todos.userId, userPayload)))
         .returning()
 
-      if (!updateTodoById) return ctx.text('The task could not be updated', 400)
+      if (!updateTodoById)
+        return ctx.json(
+          {
+            status: 'Bad Request',
+            message: 'The task could not be updated',
+          },
+          400
+        )
 
-      return ctx.text('Task updated succesfully', 201)
+      return ctx.json(
+        { status: 'No Content', message: 'The Task was succesfully updated' },
+        204
+      )
     } catch (error) {
       console.error(error)
-      return ctx.text('Internal server error', 500)
+      return ctx.json(
+        {
+          status: 'Internal Server Error',
+          message: 'An unexpected error occurred',
+        },
+        500
+      )
     }
   }
 )
@@ -168,27 +233,41 @@ toDo.put(
  */
 toDo.delete('/:id', zValidator('param', z.coerce.number().int()), async ctx => {
   try {
-    const userId = ctx.get('jwtPayload').id
-    const id = ctx.req.valid('param')
+    const userPayload = ctx.get('jwtPayload').id
+    const taskId = ctx.req.valid('param')
 
-    if (!userId) {
+    if (!userPayload) {
       return ctx.json(
-        { unauthorized: 'Invalid or not exists token', userId },
+        {
+          status: 'Unauthorized',
+          message: 'Invalid or missing token',
+          userId: userPayload,
+        },
         401
       )
     }
 
-    if (!id) return ctx.text('Id not exists', 404)
+    if (!taskId)
+      return ctx.json({ status: 'Not Found', message: 'Missing task ID' }, 404)
 
     await db
       .delete(todos)
-      .where(and(eq(todos.id, id), eq(todos.userId, userId)))
+      .where(and(eq(todos.id, taskId), eq(todos.userId, userPayload)))
       .returning()
 
-    return ctx.text('Tasks deleted successfully')
+    return ctx.json(
+      { status: 'No Content', message: 'The Task was successfully deleted' },
+      204
+    )
   } catch (error) {
     console.error(error)
-    return ctx.json({ error: 'Internal server error' }, 500)
+    return ctx.json(
+      {
+        status: 'Internal Server Error',
+        message: 'An unexpected error occurred',
+      },
+      500
+    )
   }
 })
 
@@ -197,20 +276,98 @@ toDo.delete('/:id', zValidator('param', z.coerce.number().int()), async ctx => {
  */
 toDo.delete('/', async ctx => {
   try {
-    const userId = ctx.get('jwtPayload').id
+    const userPayload = ctx.get('jwtPayload').id
 
-    if (!userId) {
+    if (!userPayload) {
       return ctx.json(
-        { unauthorized: 'Invalid or not exists token', userId },
+        {
+          status: 'Unauthorized',
+          message: 'Invalid or missing token',
+        },
         401
       )
     }
 
-    await db.delete(todos).where(eq(todos.userId, userId))
+    await db.delete(todos).where(eq(todos.userId, userPayload))
 
-    return ctx.json({ message: 'All tasks deleted successfully' }, 200)
+    return ctx.json(
+      { status: 'No Content', message: 'All tasks were successfully deleted' },
+      204
+    )
   } catch (error) {
     console.error(error)
-    return ctx.json({ error: 'Internal server error' }, 500)
+    return ctx.json(
+      {
+        status: 'Internal Server Error',
+        message: 'An unexpected error occurred',
+      },
+      500
+    )
   }
 })
+
+/**
+ * Complete a task
+ */
+toDo.patch(
+  '/:id',
+  zValidator(
+    'param',
+    z.object({
+      id: z.coerce.number().int().min(1, 'ID cannot be empty'),
+    })
+  ),
+  async ctx => {
+    try {
+      const userPayload = ctx.get('jwtPayload').id
+      const taskId = Number(ctx.req.param('id'))
+
+      if (!userPayload) {
+        return ctx.json(
+          { status: 'Unauthorized', message: 'Invalid or missing token' },
+          401
+        )
+      }
+      if (!taskId) {
+        return ctx.json(
+          { status: 'Not Found', message: 'Invalid or missing task ID' },
+          404
+        )
+      }
+
+      const updateResult = await db
+        .update(todos)
+        .set({ completed: true })
+        .where(and(eq(todos.userId, userPayload), eq(todos.id, taskId)))
+        .returning()
+
+      if (updateResult.length < 1) {
+        return ctx.json(
+          {
+            status: 'Not Found',
+            message: 'Task not found or unauthorized',
+          },
+          404
+        )
+      }
+
+      return ctx.json(
+        {
+          status: 'Success',
+          message: 'Task completed successfully',
+          task: updateResult,
+        },
+        200
+      )
+    } catch (error) {
+      console.error(error)
+      return ctx.json(
+        {
+          status: 'Internal Server Error',
+          message: 'An unexpected error occurred',
+        },
+        500
+      )
+    }
+  }
+)
