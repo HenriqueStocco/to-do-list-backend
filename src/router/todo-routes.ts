@@ -82,6 +82,15 @@ toDo.post(
 toDo.get('/', async ctx => {
   const userPayload = ctx.get('jwtPayload').id
 
+  /**
+   * Pagination logic to fetch tasks for the user.
+   * Calculates offset based on the current page and limit.
+   */
+  const { page = '1', limit = '10' } = ctx.req.query()
+  const pageNumber = Number(page)
+  const limitNumber = Number(limit)
+  const offset = (pageNumber - 1) * limitNumber
+
   if (!userPayload) {
     return ctx.json(
       {
@@ -97,10 +106,15 @@ toDo.get('/', async ctx => {
       .select()
       .from(tasks)
       .where(eq(tasks.userId, userPayload))
+      .limit(limitNumber)
+      .offset(offset)
       .orderBy(asc(tasks.id))
 
     if (getTodoList.length < 1) {
-      return ctx.json({ status: 'Success', message: 'Empty todo list' }, 200)
+      return ctx.json(
+        { status: 'Success', message: 'No tasks found for this user.' },
+        200
+      )
     }
 
     return ctx.json({ status: 'Success', tasks: getTodoList }, 200)
@@ -337,7 +351,7 @@ toDo.patch(
 
       const updateResult = await db
         .update(tasks)
-        .set({ completed: true })
+        .set({ completed: true, completedAt: sql`NOW()` })
         .where(and(eq(tasks.userId, userPayload), eq(tasks.id, taskId)))
         .returning()
 
@@ -357,6 +371,67 @@ toDo.patch(
           message: 'Task completed successfully',
           task: updateResult,
         },
+        200
+      )
+    } catch (error) {
+      console.error(error)
+      return ctx.json(
+        {
+          status: 'Internal Server Error',
+          message: 'An unexpected error occurred',
+        },
+        500
+      )
+    }
+  }
+)
+
+/**
+ * Set a priority
+ */
+
+toDo.patch(
+  '/:id/priority',
+  zValidator(
+    'json',
+    z.object({
+      priority: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+    })
+  ),
+  async ctx => {
+    try {
+      const userPayload = ctx.get('jwtPayload').id
+      const taskId = Number(ctx.req.param('id'))
+      const { priority } = ctx.req.valid('json')
+
+      if (!userPayload) {
+        return ctx.json(
+          { status: 'Unauthorized', message: 'Invalid or missing token' },
+          401
+        )
+      }
+      if (!taskId) {
+        return ctx.json(
+          { status: 'Not Found', message: 'Invalid or missing task ID' },
+          404
+        )
+      }
+
+      const updatePriority = await db
+        .update(tasks)
+        .set({ priority })
+        .where(and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)))
+        .returning()
+
+      if (updatePriority.length < 1) {
+        return ctx.json(
+          { status: 'Not Found', message: 'Task not found or unauthorized' },
+          404
+        )
+      }
+
+      return ctx.json(
+        { status: 'Success', message: 'Priority updated successfully' },
         200
       )
     } catch (error) {
