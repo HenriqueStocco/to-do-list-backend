@@ -21,7 +21,7 @@ export const authMiddleware = async (ctx: Context, next: Next) => {
   const token = getCookie(ctx, 'token') // Get token called 'token'
 
   if (!token) {
-    return ctx.json({ error: 'No token provided' }, 401)
+    return ctx.json({ status: 'Unauthorized', message: 'Missing token' }, 401)
   }
 
   try {
@@ -31,6 +31,6 @@ export const authMiddleware = async (ctx: Context, next: Next) => {
       next
     )
   } catch (error) {
-    return ctx.json({ error: 'Invalid token' }, 401)
+    return ctx.json({ status: 'Unauthorized', message: 'Invalid token' }, 401)
   }
 }
