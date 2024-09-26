@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 // Local modules
-import { todos } from '../db/schema'
+import { tasks } from '../db/schema'
 import { db, asc, eq, sql, and } from '../db'
 import { authMiddleware } from '../middlewares/auth'
 
@@ -54,7 +54,7 @@ toDo.post(
         )
       }
 
-      await db.insert(todos).values({
+      await db.insert(tasks).values({
         description: body.description,
         userId: userPayload,
       })
@@ -80,24 +80,24 @@ toDo.post(
  * Get all tasks
  */
 toDo.get('/', async ctx => {
+  const userPayload = ctx.get('jwtPayload').id
+
+  if (!userPayload) {
+    return ctx.json(
+      {
+        status: 'Unauthorized',
+        message: 'Invalid or missing token',
+      },
+      401
+    )
+  }
+
   try {
-    const userPayload = ctx.get('jwtPayload').id
-
-    if (!userPayload) {
-      return ctx.json(
-        {
-          status: 'Unauthorized',
-          message: 'Invalid or missing token',
-        },
-        401
-      )
-    }
-
     const getTodoList = await db
       .select()
-      .from(todos)
-      .where(eq(todos.userId, userPayload))
-      .orderBy(asc(todos.id))
+      .from(tasks)
+      .where(eq(tasks.userId, userPayload))
+      .orderBy(asc(tasks.id))
 
     if (getTodoList.length < 1) {
       return ctx.json({ status: 'Success', message: 'Empty todo list' }, 200)
@@ -138,8 +138,8 @@ toDo.get('/:id', async ctx => {
       return ctx.json({ status: 'Not Found', message: 'Missing task ID' }, 404)
     }
 
-    const getTodoById = await db.query.todos.findFirst({
-      where: and(eq(todos.id, taskId), eq(todos.userId, userPayload)),
+    const getTodoById = await db.query.tasks.findFirst({
+      where: and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)),
     })
 
     if (!getTodoById) {
@@ -167,7 +167,6 @@ toDo.get('/:id', async ctx => {
  */
 toDo.put(
   '/:id',
-  zValidator('param', z.coerce.number().int()),
   zValidator(
     'json',
     z.object({
@@ -197,9 +196,9 @@ toDo.put(
         )
 
       const updateTodoById = await db
-        .update(todos)
+        .update(tasks)
         .set({ description: body.description, createdAt: sql`NOW()` })
-        .where(and(eq(todos.id, taskId), eq(todos.userId, userPayload)))
+        .where(and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)))
         .returning()
 
       if (!updateTodoById)
@@ -212,8 +211,8 @@ toDo.put(
         )
 
       return ctx.json(
-        { status: 'No Content', message: 'The Task was succesfully updated' },
-        204
+        { status: 'Success', message: 'The Task was succesfully updated' },
+        200
       )
     } catch (error) {
       console.error(error)
@@ -221,6 +220,7 @@ toDo.put(
         {
           status: 'Internal Server Error',
           message: 'An unexpected error occurred',
+          error,
         },
         500
       )
@@ -231,10 +231,10 @@ toDo.put(
 /**
  * Delete a task by id
  */
-toDo.delete('/:id', zValidator('param', z.coerce.number().int()), async ctx => {
+toDo.delete('/:id', async ctx => {
   try {
     const userPayload = ctx.get('jwtPayload').id
-    const taskId = ctx.req.valid('param')
+    const taskId = Number(ctx.req.param('id'))
 
     if (!userPayload) {
       return ctx.json(
@@ -251,13 +251,13 @@ toDo.delete('/:id', zValidator('param', z.coerce.number().int()), async ctx => {
       return ctx.json({ status: 'Not Found', message: 'Missing task ID' }, 404)
 
     await db
-      .delete(todos)
-      .where(and(eq(todos.id, taskId), eq(todos.userId, userPayload)))
+      .delete(tasks)
+      .where(and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)))
       .returning()
 
     return ctx.json(
-      { status: 'No Content', message: 'The Task was successfully deleted' },
-      204
+      { status: 'Success', message: 'The Task was successfully deleted' },
+      200
     )
   } catch (error) {
     console.error(error)
@@ -288,7 +288,7 @@ toDo.delete('/', async ctx => {
       )
     }
 
-    await db.delete(todos).where(eq(todos.userId, userPayload))
+    await db.delete(tasks).where(eq(tasks.userId, userPayload))
 
     return ctx.json(
       { status: 'No Content', message: 'All tasks were successfully deleted' },
@@ -336,9 +336,9 @@ toDo.patch(
       }
 
       const updateResult = await db
-        .update(todos)
+        .update(tasks)
         .set({ completed: true })
-        .where(and(eq(todos.userId, userPayload), eq(todos.id, taskId)))
+        .where(and(eq(tasks.userId, userPayload), eq(tasks.id, taskId)))
         .returning()
 
       if (updateResult.length < 1) {
