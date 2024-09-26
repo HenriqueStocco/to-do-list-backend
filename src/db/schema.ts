@@ -7,6 +7,7 @@ import {
   boolean,
   pgTable,
   timestamp,
+  pgEnum,
 } from 'drizzle-orm/pg-core'
 
 /**
@@ -26,11 +27,17 @@ export const usersRelations = relations(users, ({ many }) => ({
 }))
 
 /**
+ * Task priority type
+ */
+export const taskPriority = pgEnum('priority', ['HIGH', 'MEDIUM', 'LOW'])
+
+/**
  * Schema `tasks` table
  */
 export const tasks = pgTable('tasks', {
   id: serial('id').primaryKey().notNull().unique(),
   description: varchar('description', { length: 200 }).notNull(),
+  priority: taskPriority('priority').notNull().default('LOW'),
   completed: boolean('completed').default(false),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true })
