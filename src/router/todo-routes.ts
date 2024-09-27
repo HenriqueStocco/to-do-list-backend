@@ -27,6 +27,7 @@ task.post(
         .min(4, 'Description cannot be empty')
         .max(200, 'Description is too long'),
       priority: z.enum(['HIGH', 'MEDIUM', 'LOW']).optional(),
+      categoryId: z.number().int().min(1).max(2),
     })
   ),
   async ctx => {
@@ -54,6 +55,7 @@ task.post(
       await db.insert(tasks).values({
         description: body.description,
         priority: body.priority,
+        categoryId: body.categoryId,
         userId: userPayload,
       })
 
@@ -466,6 +468,69 @@ task.patch(
 
       return ctx.json(
         { status: 'Success', message: 'Priority successfully updated' },
+        200
+      )
+    } catch (error) {
+      console.error(error)
+      return ctx.json(
+        {
+          status: 'Internal Server Error',
+          message: 'An unexpected error occurred',
+        },
+        500
+      )
+    }
+  }
+)
+
+task.patch(
+  '/:id/category',
+  zValidator(
+    'param',
+    z.object({
+      id: z.coerce.number().int().min(1, 'ID cannot be empty'),
+    })
+  ),
+  zValidator(
+    'json',
+    z.object({
+      categoryId: z.number().int().min(1, 'Category cannot be empty').max(2),
+    })
+  ),
+  async ctx => {
+    try {
+      const userPayload = await ctx.get('jwtPayload').id
+      const taskId = ctx.req.valid('param').id
+      const categoryId = ctx.req.valid('json').categoryId
+
+      if (!userPayload) {
+        return ctx.json(
+          { status: 'Unauthorized', message: 'Invalid or missing token' },
+          401
+        )
+      }
+      if (!taskId) {
+        return ctx.json(
+          { status: 'Not Found', message: 'Invalid or missing task ID' },
+          404
+        )
+      }
+
+      const updateTaskCategory = await db
+        .update(tasks)
+        .set({ categoryId })
+        .where(and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)))
+        .returning()
+
+      if (updateTaskCategory.length < 1) {
+        return ctx.json(
+          { status: 'Not Found', message: 'Task not found or unauthorized' },
+          404
+        )
+      }
+
+      return ctx.json(
+        { status: 'Success', message: 'Category successfully updated' },
         200
       )
     } catch (error) {
