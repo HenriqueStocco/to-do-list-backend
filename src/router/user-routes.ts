@@ -105,3 +105,18 @@ user.post('/login', async ctx => {
 
   return ctx.json({ status: 'Success', message: 'Login successful' }, 200)
 })
+
+/**
+ * Logout
+ */
+user.post('/logout', async ctx => {
+  setCookie(ctx, 'token', '', {
+    httpOnly: true,
+    secure: false,
+    sameSite: 'Strict',
+    maxAge: 0,
+    path: '/',
+  })
+
+  return ctx.json({ status: 'Success', message: 'Logout successfully' }, 200)
+})
