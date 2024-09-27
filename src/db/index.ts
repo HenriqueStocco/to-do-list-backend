@@ -2,7 +2,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 // Local modules
-import { env } from '../env'
+import { env } from '../lib/env'
 import * as schema from './schema'
 
 /**
