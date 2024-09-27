@@ -29,3 +29,5 @@ lerna-debug.log*
 migrations/
 
 api.http
+
+features.md
