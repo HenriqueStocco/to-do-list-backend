@@ -7,21 +7,17 @@ import { tasks } from '../db/schema'
 import { db, asc, eq, sql, and } from '../db'
 import { authMiddleware } from '../middlewares/auth'
 
-export const toDo = new Hono()
-
-const payloadSchema = z.object({
-  id: z.string().min(1, 'User ID cannot be empty'),
-})
+export const task = new Hono()
 
 /**
  * Uses middleware to get the JWT from the cookie
  */
-toDo.use(authMiddleware)
+task.use(authMiddleware)
 
 /**
  * Create a task
  */
-toDo.post(
+task.post(
   '/',
   zValidator(
     'json',
@@ -79,7 +75,7 @@ toDo.post(
 /**
  * Get all tasks
  */
-toDo.get('/', async ctx => {
+task.get('/all', async ctx => {
   const userPayload = ctx.get('jwtPayload').id
 
   /**
@@ -133,54 +129,72 @@ toDo.get('/', async ctx => {
 /**
  * Get a task by id
  */
-toDo.get('/:id', async ctx => {
-  try {
-    const userPayload = ctx.get('jwtPayload').id
-    const taskId = Number(ctx.req.param('id'))
+task.get(
+  '/:id',
+  zValidator(
+    'param',
+    z.object({
+      id: z.coerce.number().int().min(1, 'ID cannot be empty'),
+    })
+  ),
+  async ctx => {
+    try {
+      const userPayload = ctx.get('jwtPayload').id
+      const taskId = ctx.req.valid('param').id
 
-    if (!userPayload) {
+      if (!userPayload) {
+        return ctx.json(
+          {
+            status: 'Unauthorized',
+            message: 'Invalid or missing token',
+          },
+          401
+        )
+      }
+
+      if (!taskId) {
+        return ctx.json(
+          { status: 'Not Found', message: 'Missing task ID' },
+          404
+        )
+      }
+
+      const getTodoById = await db.query.tasks.findFirst({
+        where: and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)),
+      })
+
+      if (!getTodoById) {
+        return ctx.json(
+          { status: 'Not Found', message: 'No task with this ID was found' },
+          404
+        )
+      }
+
+      return ctx.json({ status: 'Success', task: getTodoById }, 200)
+    } catch (error) {
+      console.error(error)
       return ctx.json(
         {
-          status: 'Unauthorized',
-          message: 'Invalid or missing token',
+          status: 'Internal Server Error',
+          message: 'An unexpected error occurred',
         },
-        401
+        500
       )
     }
-
-    if (!taskId) {
-      return ctx.json({ status: 'Not Found', message: 'Missing task ID' }, 404)
-    }
-
-    const getTodoById = await db.query.tasks.findFirst({
-      where: and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)),
-    })
-
-    if (!getTodoById) {
-      return ctx.json(
-        { status: 'Not Found', message: 'No task with this ID was found' },
-        404
-      )
-    }
-
-    return ctx.json({ status: 'Success', task: getTodoById }, 200)
-  } catch (error) {
-    console.error(error)
-    return ctx.json(
-      {
-        status: 'Internal Server Error',
-        message: 'An unexpected error occurred',
-      },
-      500
-    )
   }
-})
+)
 
 /**
  * Update a task by id
  */
-toDo.put(
+task.put(
   '/:id',
+  zValidator(
+    'param',
+    z.object({
+      id: z.coerce.number().int().min(1, 'ID cannot be empty'),
+    })
+  ),
   zValidator(
     'json',
     z.object({
@@ -190,7 +204,7 @@ toDo.put(
   async ctx => {
     try {
       const userPayload = ctx.get('jwtPayload').id
-      const taskId = Number(ctx.req.param('id'))
+      const taskId = ctx.req.valid('param').id
       const body = ctx.req.valid('json')
 
       if (!userPayload) {
@@ -245,50 +259,62 @@ toDo.put(
 /**
  * Delete a task by id
  */
-toDo.delete('/:id', async ctx => {
-  try {
-    const userPayload = ctx.get('jwtPayload').id
-    const taskId = Number(ctx.req.param('id'))
+task.delete(
+  '/:id',
+  zValidator(
+    'param',
+    z.object({
+      id: z.coerce.number().int().min(1, 'ID cannot be empty'),
+    })
+  ),
+  async ctx => {
+    try {
+      const userPayload = ctx.get('jwtPayload').id
+      const taskId = ctx.req.valid('param').id
 
-    if (!userPayload) {
+      if (!userPayload) {
+        return ctx.json(
+          {
+            status: 'Unauthorized',
+            message: 'Invalid or missing token',
+            userId: userPayload,
+          },
+          401
+        )
+      }
+
+      if (!taskId)
+        return ctx.json(
+          { status: 'Not Found', message: 'Missing task ID' },
+          404
+        )
+
+      await db
+        .delete(tasks)
+        .where(and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)))
+        .returning()
+
+      return ctx.json(
+        { status: 'Success', message: 'The Task was successfully deleted' },
+        200
+      )
+    } catch (error) {
+      console.error(error)
       return ctx.json(
         {
-          status: 'Unauthorized',
-          message: 'Invalid or missing token',
-          userId: userPayload,
+          status: 'Internal Server Error',
+          message: 'An unexpected error occurred',
         },
-        401
+        500
       )
     }
-
-    if (!taskId)
-      return ctx.json({ status: 'Not Found', message: 'Missing task ID' }, 404)
-
-    await db
-      .delete(tasks)
-      .where(and(eq(tasks.id, taskId), eq(tasks.userId, userPayload)))
-      .returning()
-
-    return ctx.json(
-      { status: 'Success', message: 'The Task was successfully deleted' },
-      200
-    )
-  } catch (error) {
-    console.error(error)
-    return ctx.json(
-      {
-        status: 'Internal Server Error',
-        message: 'An unexpected error occurred',
-      },
-      500
-    )
   }
-})
+)
 
 /**
  * Delete all tasks from current user
  */
-toDo.delete('/', async ctx => {
+task.delete('/', async ctx => {
   try {
     const userPayload = ctx.get('jwtPayload').id
 
@@ -323,8 +349,8 @@ toDo.delete('/', async ctx => {
 /**
  * Complete a task
  */
-toDo.patch(
-  '/:id',
+task.patch(
+  '/:id/completion',
   zValidator(
     'param',
     z.object({
@@ -334,7 +360,7 @@ toDo.patch(
   async ctx => {
     try {
       const userPayload = ctx.get('jwtPayload').id
-      const taskId = Number(ctx.req.param('id'))
+      const taskId = ctx.req.valid('param').id
 
       if (!userPayload) {
         return ctx.json(
@@ -390,7 +416,7 @@ toDo.patch(
  * Set a priority
  */
 
-toDo.patch(
+task.patch(
   '/:id/priority',
   zValidator(
     'json',
@@ -398,10 +424,16 @@ toDo.patch(
       priority: z.enum(['HIGH', 'MEDIUM', 'LOW']),
     })
   ),
+  zValidator(
+    'param',
+    z.object({
+      id: z.coerce.number().int().min(1, 'ID cannot be empty'),
+    })
+  ),
   async ctx => {
     try {
       const userPayload = ctx.get('jwtPayload').id
-      const taskId = Number(ctx.req.param('id'))
+      const taskId = ctx.req.valid('param').id
       const { priority } = ctx.req.valid('json')
 
       if (!userPayload) {
@@ -431,7 +463,7 @@ toDo.patch(
       }
 
       return ctx.json(
-        { status: 'Success', message: 'Priority updated successfully' },
+        { status: 'Success', message: 'Priority successfully updated' },
         200
       )
     } catch (error) {
