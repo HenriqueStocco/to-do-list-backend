@@ -3,7 +3,7 @@ import { jwt, sign } from 'hono/jwt'
 import { getCookie } from 'hono/cookie'
 import type { Context, Next } from 'hono'
 // Local module
-import { env } from '../env'
+import { env } from '../lib/env'
 import { z } from 'zod'
 
 /**

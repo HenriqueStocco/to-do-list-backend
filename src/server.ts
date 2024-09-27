@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { serve } from '@hono/node-server'
 // Local modules
-import { env } from './env'
+import { env } from './lib/env'
 import { task } from './router/todo-routes'
 import { user } from './router/user-routes'
 import { prettyJSON } from 'hono/pretty-json'
