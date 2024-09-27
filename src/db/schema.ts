@@ -8,6 +8,7 @@ import {
   pgTable,
   timestamp,
   pgEnum,
+  integer,
 } from 'drizzle-orm/pg-core'
 
 /**
@@ -23,6 +24,23 @@ export const users = pgTable('users', {
  * Relation: One USER to MANY TASKS
  */
 export const usersRelations = relations(users, ({ many }) => ({
+  tasks: many(tasks),
+}))
+
+/**
+ * Schema `categories` table
+
+ */
+export const categories = pgTable('categories', {
+  id: serial('id').primaryKey().notNull().unique(),
+  name: varchar('category_name', { length: 100 }).notNull().unique(),
+})
+
+/**
+ * Relation: One CATEGORY to Many TASKS
+ * Cardinality: 1:n
+ * */
+export const categoriesRelation = relations(categories, ({ many }) => ({
   tasks: many(tasks),
 }))
 
@@ -48,14 +66,27 @@ export const tasks = pgTable('tasks', {
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  // Category references
+  categoryId: integer('category_id')
+    .notNull()
+    .references(() => categories.id, {
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    }),
 })
+
 /**
  * Relation: MANY TASKS to ONE USER,
+ * Relation: MANY TASKS to ONE CATEGORY
  * cardinality: n:1
  */
-export const todosRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one }) => ({
   user: one(users, {
     fields: [tasks.userId],
     references: [users.id],
+  }),
+  category: one(categories, {
+    fields: [tasks.categoryId],
+    references: [categories.id],
   }),
 }))
