@@ -37,7 +37,7 @@ export const taskPriority = pgEnum('priority', ['HIGH', 'MEDIUM', 'LOW'])
 export const tasks = pgTable('tasks', {
   id: serial('id').primaryKey().notNull().unique(),
   description: varchar('description', { length: 200 }).notNull(),
-  priority: taskPriority('priority').notNull().default('LOW'),
+  priority: taskPriority('priority').default('LOW'),
   completed: boolean('completed').default(false),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true })
