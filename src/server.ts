@@ -4,18 +4,20 @@ import { logger } from 'hono/logger'
 import { serve } from '@hono/node-server'
 // Local modules
 import { env } from './env'
-import { toDo } from './router/todo-routes'
+import { task } from './router/todo-routes'
 import { user } from './router/user-routes'
 import { prettyJSON } from 'hono/pretty-json'
+import { compress } from 'hono/compress'
 
 const app = new Hono().basePath('/api')
 
 // Middlewares
 app.use(prettyJSON())
 app.use(logger())
+app.use(compress())
 
 // Routes
-app.route('/todo', toDo)
+app.route('/task', task)
 app.route('/auth', user)
 
 // Local server listener
