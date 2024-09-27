@@ -26,6 +26,7 @@ task.post(
         .string()
         .min(4, 'Description cannot be empty')
         .max(200, 'Description is too long'),
+      priority: z.enum(['HIGH', 'MEDIUM', 'LOW']).optional(),
     })
   ),
   async ctx => {
@@ -52,6 +53,7 @@ task.post(
 
       await db.insert(tasks).values({
         description: body.description,
+        priority: body.priority,
         userId: userPayload,
       })
 
