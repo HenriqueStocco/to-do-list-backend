@@ -1,13 +1,14 @@
-import { string, z } from "zod"
+import { z } from "zod"
 import { createTRPCRouter, procedure } from ".."
 import { tasks } from "../../db/schema"
+import { TRPCError } from "@trpc/server"
 
-// export const createTaskSchema = z.object({
-//   title: z.string().min(4).max(100),
-//   description: z.string().min(4).max(100),
-//   priority: z.enum(["high", "medium", "low"]),
-//   completion: z.boolean(),
-// })
+export const createTaskSchema = z.object({
+  title: z.string().min(4).max(100),
+  description: z.string().min(4).max(100),
+  priority: z.enum(["high", "medium", "low"]),
+  completed: z.boolean(),
+})
 
 export const taskRouter = createTRPCRouter({
   all: procedure.query(async ({ ctx: { database, mainClient } }) => {
@@ -17,17 +18,10 @@ export const taskRouter = createTRPCRouter({
   }),
 
   create: procedure
-    .input(
-      z.object({
-        title: z.string().min(4).max(100),
-        description: z.string().min(4).max(100),
-        priority: z.enum(["high", "medium", "low"]),
-        completed: z.boolean(),
-      })
-    )
+    .input(createTaskSchema)
     .mutation(async ({ ctx: { database, mainClient }, input }) => {
       try {
-        const createTask = await database(mainClient)
+        const createdTask = await database(mainClient)
           .insert(tasks)
           .values({
             title: input.title,
@@ -36,6 +30,13 @@ export const taskRouter = createTRPCRouter({
             completed: input.completed,
           })
           .returning()
-      } catch (error) {}
+
+        if (!createdTask) throw new TRPCError({ code: "BAD_REQUEST" })
+
+        return createdTask
+      } catch (error) {
+        console.error(error)
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" })
+      }
     }),
 })
