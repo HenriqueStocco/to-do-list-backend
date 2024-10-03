@@ -1,0 +1,11 @@
+name: todo-trpc-hono-drizzle-bun
+
+services:
+  pg:
+    image: bitnami/postgresql:latest
+    ports: 
+      - "5432:5432"
+    environment:
+      - POSTGRESQL_USER=${POSTGRESQL_USER}
+      - POSTGRESQL_PASSWORD=${POSTGRESQL_PASSWORD}
+      - POSTGRESQL_DATABASE=${POSTGRESQL_DATABASE}
