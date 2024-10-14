@@ -1,0 +1,11 @@
+name: note-block-pg-1
+
+services:
+  pg:
+    image: bitnami/postgresql:latest
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres123
+      - POSTGRES_DB=notes

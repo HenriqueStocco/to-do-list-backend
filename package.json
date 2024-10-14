@@ -1,0 +1,26 @@
+{
+  "name": "trpc-hono",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch --env-file=.env src/app.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.2",
+    "@trpc/client": "^10.45.2",
+    "@trpc/server": "^10.45.2",
+    "drizzle-orm": "^0.34.1",
+    "drizzle-zod": "^0.5.1",
+    "hono": "^4.6.4",
+    "pg": "^8.13.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.3",
+    "@faker-js/faker": "^9.0.3",
+    "@types/node": "^20.11.17",
+    "@types/pg": "^8.11.10",
+    "date-fns": "^4.1.0",
+    "drizzle-kit": "^0.25.0",
+    "tsx": "^4.7.1"
+  }
+}
